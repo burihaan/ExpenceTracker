@@ -5,12 +5,13 @@ from datetime import date, datetime
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
-from database.db import create_user, get_user_by_email, init_db, seed_db
+from database.db import CATEGORIES, create_user, get_user_by_email, init_db, seed_db
 from database.queries import (
     get_category_breakdown,
     get_recent_transactions,
     get_summary_stats,
     get_user_by_id,
+    insert_expense,
 )
 
 app = Flask(__name__)
@@ -202,9 +203,53 @@ def profile():
     )
 
 
-@app.route("/expenses/add")
+@app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
-    return "Add expense — coming in Step 7"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    today = date.today().isoformat()
+
+    if request.method == "GET":
+        return render_template("add_expense.html", categories=CATEGORIES, today=today)
+
+    amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    date_str = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()
+
+    # Pre-validation raw strings, used to repopulate the form on error.
+    form_values = {"amount": amount, "category": category, "date": date_str, "description": description}
+
+    def rerender(message):
+        flash(message, "error")
+        return render_template("add_expense.html", categories=CATEGORIES, today=today, **form_values), 400
+
+    if not amount or not category or not date_str:
+        return rerender("Amount, category, and date are required.")
+
+    try:
+        amount_value = float(amount)
+    except ValueError:
+        return rerender("Amount must be a valid number.")
+
+    if amount_value <= 0:
+        return rerender("Amount must be greater than zero.")
+
+    if category not in CATEGORIES:
+        return rerender("Please select a valid category.")
+
+    parsed_date = _parse_date(date_str)
+    if not parsed_date:
+        return rerender("Please enter a valid date.")
+
+    if len(description) > 200:
+        return rerender("Description must be 200 characters or fewer.")
+
+    insert_expense(session["user_id"], amount_value, category, parsed_date.isoformat(), description or None)
+
+    flash("Expense added successfully.", "success")
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/edit")
