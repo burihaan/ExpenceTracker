@@ -2,16 +2,18 @@ import calendar
 import sqlite3
 from datetime import date, datetime
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
 from database.db import CATEGORIES, create_user, get_user_by_email, init_db, seed_db
 from database.queries import (
     get_category_breakdown,
+    get_expense_by_id,
     get_recent_transactions,
     get_summary_stats,
     get_user_by_id,
     insert_expense,
+    update_expense,
 )
 
 app = Flask(__name__)
@@ -178,6 +180,7 @@ def profile():
 
     transactions = [
         {
+            "id": t["id"],
             "date": t["date"],
             "description": t["description"],
             "category": t["category"],
@@ -252,9 +255,61 @@ def add_expense():
     return redirect(url_for("profile"))
 
 
-@app.route("/expenses/<int:id>/edit")
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
 def edit_expense(id):
-    return "Edit expense — coming in Step 8"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    existing = get_expense_by_id(id, user_id)
+    if existing is None:
+        abort(404)
+
+    if request.method == "GET":
+        return render_template("edit_expense.html", categories=CATEGORIES, expense=existing)
+
+    amount = request.form.get("amount", "").strip()
+    category = request.form.get("category", "").strip()
+    date_str = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()
+
+    form_values = {
+        "id": id,
+        "amount": amount,
+        "category": category,
+        "date": date_str,
+        "description": description,
+    }
+
+    def rerender(message):
+        flash(message, "error")
+        return render_template("edit_expense.html", categories=CATEGORIES, expense=form_values), 400
+
+    if not amount or not category or not date_str:
+        return rerender("Amount, category, and date are required.")
+
+    try:
+        amount_value = float(amount)
+    except ValueError:
+        return rerender("Amount must be a valid number.")
+
+    if amount_value <= 0:
+        return rerender("Amount must be greater than zero.")
+
+    if category not in CATEGORIES:
+        return rerender("Please select a valid category.")
+
+    parsed_date = _parse_date(date_str)
+    if not parsed_date:
+        return rerender("Please enter a valid date.")
+
+    if len(description) > 200:
+        return rerender("Description must be 200 characters or fewer.")
+
+    update_expense(id, user_id, amount_value, category, parsed_date.isoformat(), description or None)
+
+    flash("Expense updated successfully.", "success")
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:id>/delete")

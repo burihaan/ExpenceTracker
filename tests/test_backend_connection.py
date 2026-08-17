@@ -51,7 +51,7 @@ def test_get_recent_transactions_ordered(client):
     dates = [t["date"] for t in transactions]
     assert dates == sorted(dates, reverse=True)
     for t in transactions:
-        assert set(t.keys()) == {"date", "description", "category", "amount"}
+        assert set(t.keys()) == {"id", "date", "description", "category", "amount"}
 
 
 def test_get_recent_transactions_empty(client):
