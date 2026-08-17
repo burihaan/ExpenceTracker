@@ -20,6 +20,29 @@
             </div>
         </div>
 
+        <div class="profile-filterbar">
+            <div class="profile-filter-presets">
+                <a href="{{ url_for('profile', date_from=preset_ranges.this_month[0], date_to=preset_ranges.this_month[1]) }}"
+                   class="profile-filter-btn{% if active_preset == 'this_month' %} profile-filter-btn-active{% endif %}">This Month</a>
+                <a href="{{ url_for('profile', date_from=preset_ranges.last_3_months[0], date_to=preset_ranges.last_3_months[1]) }}"
+                   class="profile-filter-btn{% if active_preset == 'last_3_months' %} profile-filter-btn-active{% endif %}">Last 3 Months</a>
+                <a href="{{ url_for('profile', date_from=preset_ranges.last_6_months[0], date_to=preset_ranges.last_6_months[1]) }}"
+                   class="profile-filter-btn{% if active_preset == 'last_6_months' %} profile-filter-btn-active{% endif %}">Last 6 Months</a>
+                <a href="{{ url_for('profile') }}"
+                   class="profile-filter-btn{% if active_preset == 'all_time' %} profile-filter-btn-active{% endif %}">All Time</a>
+            </div>
+            <form class="profile-filter-custom{% if active_preset is none and selected_from %} profile-filter-custom-active{% endif %}"
+                  action="{{ url_for('profile') }}" method="get">
+                <label class="profile-filter-label" for="date_from">From
+                    <input type="date" id="date_from" name="date_from" value="{{ selected_from or '' }}">
+                </label>
+                <label class="profile-filter-label" for="date_to">To
+                    <input type="date" id="date_to" name="date_to" value="{{ selected_to or '' }}">
+                </label>
+                <button type="submit" class="profile-filter-apply">Apply</button>
+            </form>
+        </div>
+
         <div class="profile-stats">
             {% for stat in stats %}
             <div class="profile-stat">
@@ -82,6 +105,10 @@
                                 <td><span class="category-badge category-badge-{{ t.category|lower }}">{{ t.category }}</span></td>
                                 <td class="col-amount">{{ t.amount }}</td>
                             </tr>
+                            {% else %}
+                            <tr class="profile-table-empty">
+                                <td colspan="4">No transactions in this date range.</td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -104,6 +131,8 @@
                     </div>
                     <span class="profile-bar-total">{{ c.total }}</span>
                 </div>
+                {% else %}
+                <p class="profile-empty-note">No expenses in this date range.</p>
                 {% endfor %}
             </div>
         </div>

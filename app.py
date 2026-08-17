@@ -1,12 +1,52 @@
+import calendar
 import sqlite3
+from datetime import date, datetime
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
 from database.db import create_user, get_user_by_email, init_db, seed_db
+from database.queries import (
+    get_category_breakdown,
+    get_recent_transactions,
+    get_summary_stats,
+    get_user_by_id,
+)
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-key-change-in-production"
+
+
+# ------------------------------------------------------------------ #
+# Helpers                                                              #
+# ------------------------------------------------------------------ #
+
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _months_ago(reference_date, months):
+    # month_index counts months since year 0, Jan=0; // and % roll negative
+    # values back across a year boundary (e.g. Jan - 3 -> Oct of prev. year).
+    month_index = reference_date.month - 1 - months
+    year = reference_date.year + month_index // 12
+    month = month_index % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(reference_date.day, last_day))
+
+
+def _match_preset(date_from, date_to, preset_ranges):
+    if date_from is None and date_to is None:
+        return "all_time"
+    return next(
+        (name for name, (f, t) in preset_ranges.items() if (date_from, date_to) == (f, t)),
+        None,
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -96,36 +136,69 @@ def profile():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
+    user_id = session["user_id"]
+    today = date.today()
+
+    parsed_from = _parse_date(request.args.get("date_from"))
+    parsed_to = _parse_date(request.args.get("date_to"))
+
+    if parsed_from and parsed_to and parsed_from > parsed_to:
+        flash("Start date must be before end date.", "error")
+        parsed_from = parsed_to = None
+
+    date_from = parsed_from.isoformat() if parsed_from else None
+    date_to = parsed_to.isoformat() if parsed_to else None
+
+    preset_ranges = {
+        "this_month": (today.replace(day=1).isoformat(), today.isoformat()),
+        "last_3_months": (_months_ago(today, 3).isoformat(), today.isoformat()),
+        "last_6_months": (_months_ago(today, 6).isoformat(), today.isoformat()),
+    }
+
+    active_preset = _match_preset(date_from, date_to, preset_ranges)
+    filter_note = "All Time" if active_preset == "all_time" else "Filtered"
+
+    profile_user = get_user_by_id(user_id)
+    stats_raw = get_summary_stats(user_id, date_from=date_from, date_to=date_to)
+
+    initials = "".join(word[0] for word in profile_user["name"].split()[:2]).upper()
     user = {
-        "name": "Aditi Rao",
-        "email": "aditi.rao@example.com",
-        "initials": "AR",
-        "member_since": "March 2024",
+        "name": profile_user["name"],
+        "email": profile_user["email"],
+        "initials": initials,
+        "member_since": profile_user["member_since"],
     }
 
     stats = [
-        {"label": "Total spent", "value": "₹42,180", "note": "This month", "icon": "wallet"},
-        {"label": "Transactions", "value": "24", "note": "Last 30 days", "icon": "swap"},
-        {"label": "Top category", "value": "Food", "note": "₹12,400 spent", "icon": "tag"},
+        {"label": "Total spent", "value": f"₹{stats_raw['total_spent']:,.2f}", "note": filter_note, "icon": "wallet"},
+        {"label": "Transactions", "value": str(stats_raw["transaction_count"]), "note": filter_note, "icon": "swap"},
+        {"label": "Top category", "value": stats_raw["top_category"], "note": "", "icon": "tag"},
     ]
 
     transactions = [
-        {"date": "12 Aug 2026", "description": "Grocery run", "category": "Food", "amount": "₹1,850"},
-        {"date": "10 Aug 2026", "description": "Metro card top-up", "category": "Transport", "amount": "₹500"},
-        {"date": "08 Aug 2026", "description": "Electricity bill", "category": "Bills", "amount": "₹2,340"},
-        {"date": "05 Aug 2026", "description": "Movie night", "category": "Entertainment", "amount": "₹800"},
+        {
+            "date": t["date"],
+            "description": t["description"],
+            "category": t["category"],
+            "amount": f"₹{t['amount']:,.2f}",
+        }
+        for t in get_recent_transactions(user_id, date_from=date_from, date_to=date_to)
     ]
 
     categories = [
-        {"name": "Food", "total": "₹12,400", "percent": 40},
-        {"name": "Bills", "total": "₹9,300", "percent": 30},
-        {"name": "Transport", "total": "₹6,200", "percent": 20},
-        {"name": "Entertainment", "total": "₹3,100", "percent": 10},
+        {
+            "name": c["name"],
+            "total": f"₹{c['amount']:,.2f}",
+            "percent": min(100, max(10, round(c["pct"] / 10) * 10)),
+        }
+        for c in get_category_breakdown(user_id, date_from=date_from, date_to=date_to)
     ]
 
     return render_template(
         "profile.html", user=user, stats=stats,
         transactions=transactions, categories=categories,
+        selected_from=date_from, selected_to=date_to,
+        active_preset=active_preset, preset_ranges=preset_ranges,
     )
 
 

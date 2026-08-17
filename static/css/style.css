@@ -30,6 +30,24 @@
     --radius-lg: 20px;
 }
 
+[data-theme="dark"] {
+    --ink: #f2f1ec;
+    --ink-soft: #d4d2c9;
+    --ink-muted: #a3a099;
+    --ink-faint: #726f68;
+    --paper: #16181a;
+    --paper-warm: #1e2023;
+    --paper-card: #222427;
+    --accent: #5fbf8b;
+    --accent-light: #1c3327;
+    --accent-2: #e3a94c;
+    --accent-2-light: #3a2c14;
+    --danger: #e8776a;
+    --danger-light: #3c211d;
+    --border: #34363a;
+    --border-soft: #2a2c2f;
+}
+
 /* ------------------------------------------------------------------ */
 /* Reset                                                               */
 /* ------------------------------------------------------------------ */
@@ -49,6 +67,7 @@ body {
     font-size: 1rem;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -112,6 +131,35 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nav-cta:hover { background: var(--accent) !important; }
+
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.theme-toggle:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+
+.theme-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.theme-icon-moon { display: none; }
+
+[data-theme="dark"] .theme-icon-sun { display: none; }
+[data-theme="dark"] .theme-icon-moon { display: block; }
 
 /* ------------------------------------------------------------------ */
 /* Main                                                                */
