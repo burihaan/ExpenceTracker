@@ -7,6 +7,7 @@ from werkzeug.security import check_password_hash
 
 from database.db import CATEGORIES, create_user, get_user_by_email, init_db, seed_db
 from database.queries import (
+    delete_expense_by_id,
     get_category_breakdown,
     get_expense_by_id,
     get_recent_transactions,
@@ -312,9 +313,20 @@ def edit_expense(id):
     return redirect(url_for("profile"))
 
 
-@app.route("/expenses/<int:id>/delete")
+@app.route("/expenses/<int:id>/delete", methods=["POST"])
 def delete_expense(id):
-    return "Delete expense — coming in Step 9"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    existing = get_expense_by_id(id, user_id)
+    if existing is None:
+        abort(404)
+
+    delete_expense_by_id(id, user_id)
+
+    flash("Expense deleted successfully.", "success")
+    return redirect(url_for("profile"))
 
 
 with app.app_context():
