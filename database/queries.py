@@ -59,14 +59,14 @@ def get_recent_transactions(user_id, limit=10, date_from=None, date_to=None):
     params.append(limit)
 
     rows = conn.execute(
-        "SELECT date, description, category, amount FROM expenses "
+        "SELECT id, date, description, category, amount FROM expenses "
         f"{where} ORDER BY date DESC, id DESC LIMIT ?",
         params,
     ).fetchall()
     conn.close()
 
     return [
-        {"date": r["date"], "description": r["description"], "category": r["category"], "amount": r["amount"]}
+        {"id": r["id"], "date": r["date"], "description": r["description"], "category": r["category"], "amount": r["amount"]}
         for r in rows
     ]
 
@@ -107,5 +107,41 @@ def insert_expense(user_id, amount, category, expense_date, description):
         )
         conn.commit()
         return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_expense_by_id(expense_id, user_id):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, amount, category, date, description FROM expenses "
+            "WHERE id = ? AND user_id = ?",
+            (expense_id, user_id),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "amount": row["amount"],
+        "category": row["category"],
+        "date": row["date"],
+        "description": row["description"],
+    }
+
+
+def update_expense(expense_id, user_id, amount, category, expense_date, description):
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "UPDATE expenses SET amount = ?, category = ?, date = ?, description = ? "
+            "WHERE id = ? AND user_id = ?",
+            (amount, category, expense_date, description, expense_id, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount
     finally:
         conn.close()
