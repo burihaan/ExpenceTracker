@@ -221,6 +221,10 @@
     width: 16px;
     height: 16px;
     color: var(--ink-muted);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
 }
 
 .table-action-link svg {
@@ -230,6 +234,15 @@
 
 .table-action-link:hover {
     color: var(--accent);
+}
+
+.delete-form {
+    display: inline-flex;
+    margin-left: 0.5rem;
+}
+
+.btn-delete:hover {
+    color: var(--danger);
 }
 
 /* ------------------------------------------------------------------ */
